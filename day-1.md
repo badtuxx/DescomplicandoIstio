@@ -349,3 +349,348 @@ Vamos verificar se o nosso deployment foi criado com sucesso:
 ```bash
 kubectl get pods -n nginx
 ```
+
+A saída será algo parecido com isso:
+
+```bash
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-57d84f57dc-v967d   2/2     Running   0          34s
+```
+
+Tinhamos a intenção de criar um deployment com somente um container do Nginx, mas se você olhar com calma, verá que temos dois containers rodando dentro do pod `nginx-57d84f57dc-v967d`. aahhhhh, esse é o nome do pod no meu exemplo, no seu caso será outro.
+
+Mas fique tranquila, o que temos aqui é o container do Nginx e o sidecar Envoy, que foi injetado automaticamente pelo Istio.
+
+Mas tio Jefim, o que é esse sidecar Envoy?
+
+Calma que já vamos entrar no detalhe sobre ele, mas o que eu quero que você saiba agora é que toda a comunicação com o Nginx passará pelo Envoy, o que significa que agora temos total controle sobre o tráfego que entra e sai do Nginx, e mais, como ele deve se comportar.
+
+Vamos dar um `describe` no pod para ver mais detalhes:
+
+```bash
+kubectl describe pod nginx-57d84f57dc-v967d -n nginx
+```
+
+A saída será algo parecida com isso:
+
+```bash
+Name:             nginx-57d84f57dc-v967d
+Namespace:        nginx
+Priority:         0
+Service Account:  default
+Node:             strigus-worker3/172.18.0.6
+Start Time:       Sun, 23 Jun 2024 16:30:26 +0200
+Labels:           app=nginx
+                  pod-template-hash=57d84f57dc
+                  security.istio.io/tlsMode=istio
+                  service.istio.io/canonical-name=nginx
+                  service.istio.io/canonical-revision=latest
+Annotations:      istio.io/rev: default
+                  kubectl.kubernetes.io/default-container: nginx
+                  kubectl.kubernetes.io/default-logs-container: nginx
+                  prometheus.io/path: /stats/prometheus
+                  prometheus.io/port: 15020
+                  prometheus.io/scrape: true
+                  sidecar.istio.io/status:
+                    {"initContainers":["istio-init"],"containers":["istio-proxy"],"volumes":["workload-socket","credential-socket","workload-certs","istio-env...
+Status:           Running
+IP:               10.244.3.4
+IPs:
+  IP:           10.244.3.4
+Controlled By:  ReplicaSet/nginx-57d84f57dc
+Init Containers:
+  istio-init:
+    Container ID:  containerd://f28e35ab187dac7690febd2a339079cd10c0ed6baf5e0f3eb9626a9f031fcb55
+    Image:         docker.io/istio/proxyv2:1.22.1
+    Image ID:      docker.io/istio/proxyv2@sha256:57621adeb78e67c52e34ec1676d1ae898b252134838d60298c7446d0964551cc
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      istio-iptables
+      -p
+      15001
+      -z
+      15006
+      -u
+      1337
+      -m
+      REDIRECT
+      -i
+      *
+      -x
+
+      -b
+      *
+      -d
+      15090,15021,15020
+      --log_output_level=default:info
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Sun, 23 Jun 2024 16:30:27 +0200
+      Finished:     Sun, 23 Jun 2024 16:30:27 +0200
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     2
+      memory:  1Gi
+    Requests:
+      cpu:        10m
+      memory:     40Mi
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wdrww (ro)
+Containers:
+  nginx:
+    Container ID:   containerd://c8911cbc53dcfac1b7d27fd45e285e547d1272ec4805ca6ef13da9d373ec8812
+    Image:          nginx:latest
+    Image ID:       docker.io/library/nginx@sha256:9c367186df9a6b18c6735357b8eb7f407347e84aea09beb184961cb83543d46e
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Sun, 23 Jun 2024 16:30:32 +0200
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wdrww (ro)
+  istio-proxy:
+    Container ID:  containerd://6220e3651bec2fd924c29fa882f7b5d9f114d54be011ef41d70cb6e411b16ab8
+    Image:         docker.io/istio/proxyv2:1.22.1
+    Image ID:      docker.io/istio/proxyv2@sha256:57621adeb78e67c52e34ec1676d1ae898b252134838d60298c7446d0964551cc
+    Port:          15090/TCP
+    Host Port:     0/TCP
+    Args:
+      proxy
+      sidecar
+      --domain
+      $(POD_NAMESPACE).svc.cluster.local
+      --proxyLogLevel=warning
+      --proxyComponentLogLevel=misc:error
+      --log_output_level=default:info
+    State:          Running
+      Started:      Sun, 23 Jun 2024 16:30:32 +0200
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     2
+      memory:  1Gi
+    Requests:
+      cpu:      10m
+      memory:   40Mi
+    Readiness:  http-get http://:15021/healthz/ready delay=0s timeout=3s period=15s #success=1 #failure=4
+    Startup:    http-get http://:15021/healthz/ready delay=0s timeout=3s period=1s #success=1 #failure=600
+    Environment:
+      PILOT_CERT_PROVIDER:           istiod
+      CA_ADDR:                       istiod.istio-system.svc:15012
+      POD_NAME:                      nginx-57d84f57dc-v967d (v1:metadata.name)
+      POD_NAMESPACE:                 nginx (v1:metadata.namespace)
+      INSTANCE_IP:                    (v1:status.podIP)
+      SERVICE_ACCOUNT:                (v1:spec.serviceAccountName)
+      HOST_IP:                        (v1:status.hostIP)
+      ISTIO_CPU_LIMIT:               2 (limits.cpu)
+      PROXY_CONFIG:                  {}
+
+      ISTIO_META_POD_PORTS:          [
+                                         {"containerPort":80,"protocol":"TCP"}
+                                     ]
+      ISTIO_META_APP_CONTAINERS:     nginx
+      GOMEMLIMIT:                    1073741824 (limits.memory)
+      GOMAXPROCS:                    2 (limits.cpu)
+      ISTIO_META_CLUSTER_ID:         Kubernetes
+      ISTIO_META_NODE_NAME:           (v1:spec.nodeName)
+      ISTIO_META_INTERCEPTION_MODE:  REDIRECT
+      ISTIO_META_WORKLOAD_NAME:      nginx
+      ISTIO_META_OWNER:              kubernetes://apis/apps/v1/namespaces/nginx/deployments/nginx
+      ISTIO_META_MESH_ID:            cluster.local
+      TRUST_DOMAIN:                  cluster.local
+    Mounts:
+      /etc/istio/pod from istio-podinfo (rw)
+      /etc/istio/proxy from istio-envoy (rw)
+      /var/lib/istio/data from istio-data (rw)
+      /var/run/secrets/credential-uds from credential-socket (rw)
+      /var/run/secrets/istio from istiod-ca-cert (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wdrww (ro)
+      /var/run/secrets/tokens from istio-token (rw)
+      /var/run/secrets/workload-spiffe-credentials from workload-certs (rw)
+      /var/run/secrets/workload-spiffe-uds from workload-socket (rw)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  workload-socket:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  credential-socket:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  workload-certs:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  istio-envoy:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  istio-data:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  istio-podinfo:
+    Type:  DownwardAPI (a volume populated by information about the pod)
+    Items:
+      metadata.labels -> labels
+      metadata.annotations -> annotations
+  istio-token:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  43200
+  istiod-ca-cert:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      istio-ca-root-cert
+    Optional:  false
+  kube-api-access-wdrww:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age    From               Message
+  ----     ------     ----   ----               -------
+  Normal   Scheduled  4m29s  default-scheduler  Successfully assigned nginx/nginx-57d84f57dc-v967d to strigus-worker3
+  Normal   Pulled     4m30s  kubelet            Container image "docker.io/istio/proxyv2:1.22.1" already present on machine
+  Normal   Created    4m30s  kubelet            Created container istio-init
+  Normal   Started    4m29s  kubelet            Started container istio-init
+  Normal   Pulling    4m29s  kubelet            Pulling image "nginx:latest"
+  Normal   Pulled     4m24s  kubelet            Successfully pulled image "nginx:latest" in 4.439759257s (4.439768775s including waiting)
+  Normal   Created    4m24s  kubelet            Created container nginx
+  Normal   Started    4m24s  kubelet            Started container nginx
+  Normal   Pulled     4m24s  kubelet            Container image "docker.io/istio/proxyv2:1.22.1" already present on machine
+  Normal   Created    4m24s  kubelet            Created container istio-proxy
+  Normal   Started    4m24s  kubelet            Started container istio-proxy
+  Warning  Unhealthy  4m24s  kubelet            Startup probe failed: Get "http://10.244.3.4:15021/healthz/ready": dial tcp 10.244.3.4:15021: connect: connection refused
+```
+
+Aqui podemos ver muitas informações sobre o pod, mas o que é mais importante aqui é o contariner `istio-proxy`, que é o sidecar Envoy que foi injetado automaticamente pelo Istio.
+
+```bash
+istio-proxy:
+    Container ID:  containerd://6220e3651bec2fd924c29fa882f7b5d9f114d54be011ef41d70cb6e411b16ab8
+    Image:         docker.io/istio/proxyv2:1.22.1
+    Image ID:      docker.io/istio/proxyv2@sha256:57621adeb78e67c52e34ec1676d1ae898b252134838d60298c7446d0964551cc
+    Port:          15090/TCP
+    Host Port:     0/TCP
+    Args:
+      proxy
+      sidecar
+      --domain
+      $(POD_NAMESPACE).svc.cluster.local
+      --proxyLogLevel=warning
+      --proxyComponentLogLevel=misc:error
+      --log_output_level=default:info
+    State:          Running
+      Started:      Sun, 23 Jun 2024 16:30:32 +0200
+    Ready:          True
+```
+
+Quando adicionamos a label `istio-injection=enabled` no namespace `nginx`, o Istio começou a entender que queremos que ele injete automaticamente o sidecar Envoy nos pods desse namespace, e é isso que vemos aqui. 
+
+Todo e qualquer deployment que fizemos nessa namespace terá o sidecar Envoy injetado automaticamente.
+
+Com o Envoy por lá, podemos capturar todas as requisições que entram e saem do Nginx, controlar o tráfego, aplicar políticas de segurança, monitorar e garantir a resiliência da aplicação, e muito das vezes sem que a pessoa desenvolvedora precise se preocupar com isso.
+
+Boa parte da mágica do Istio acontece por conta do Envoy, mas irei entrar em detalhes sobre ele no próximo capítulo.
+
+Olha o quando evoluímos em poucos minutos, já temos o cli instalado, o Istio está rodando fino no cluster e já inclusive temos a nossa primeira namespace sob o controle do Istio, e com o Nginx rodando com o sidecar Envoy, o nosso proxy.
+
+Ahhh, quando você instala o Istio, você tem os tal dos profiles, eu inclusive comentei com vocês que iriamos usar o `demo`, mas você pode usar outros profiles, como o `minimal`, `default`, `remote`, `empty`, `preview`, e `ambient`.
+
+Vamos entender um pouco sobre cada um deles:
+
+**default**
+
+Perfil padrão que fornece um conjunto básico de recursos do Istio.
+Inclui o istiod (plano de controle) e os gateways de entrada e saída (istio-ingressgateway e istio-egressgateway).
+
+**demo**
+
+Perfil que habilita mais recursos, útil para ambientes de demonstração e teste.
+Inclui os mesmos componentes do perfil padrão, além de recursos adicionais.
+
+**minimal**
+
+Perfil que inclui apenas o mínimo necessário para iniciar o Istio.
+Contém apenas o componente istiod.
+
+**remote**
+
+Perfil usado para configurar clusters remotos em uma malha de serviços distribuída.
+Permite a integração de vários clusters em uma única malha de serviços do Istio.
+
+**ambient**
+
+Perfil que inclui o componente CNI e o Ztunnel.
+Fornece uma abordagem alternativa de rede e malha de serviços.
+
+E como sabemos, estamos usando o modo `demo`, e por isso que temos os gateways de entrada e saída, além do istiod, que é o plano de controle do Istio.
+
+Dito tudo isso, bora voltar o foco novamente em nossa App, que é o Nginx, mas finge que é a App da sua firma, ok? hahha :)
+
+--- 
+
+Vamos remover o nosso deployment do Nginx, pois vamos criar um novo deployment, o nosso sofrido mais sempre presente, o Giropops-Senhas!
+
+Primeiro passo, bora clonar o repo onde temos o Giropops-Senhas e mais algumas ferramentas, sim, iremos clonar o Giropops-Senhas-Labs!
+
+```bash
+git clone git@github.com:badtuxx/giropops-senhas-labs.git
+```
+
+Agora bora criar o namespace para o nosso deployment:
+
+```bash
+kubectl create ns giropops-senhas
+```
+
+Agora vamos adicionar o label `istio-injection=enabled` no namespace `giropops-senhas`:
+
+```bash
+kubectl label namespace giropops-senhas istio-injection=enabled
+```
+
+Pronto, o namespace está pronto para receber o nosso deployment! 
+
+O Giropops-Senhas é uma aplicação simples que simula um sistema de senhas, onde você pode gerar uma senha. A App é composta por duas partes, a App que é em Python, um Flask bem sem vergonha que criamos durante uma live, e a outra parte é o Redis, que é onde é armazenada temporariamente a senha gerada. Ele está ae somente para que tenhamos um novo componente para brincar. :)
+
+
+Dito isso, bora realizar o deploy do Giropops-Senhas!
+
+```bash
+kubectl apply -f giropops-senhas-labs/giropops-senhas/app-deployment.yaml -n giropops-senhas
+kubectl apply -f giropops-senhas-labs/giropops-senhas/app-service.yaml -n giropops-senhas
+kubectl apply -f giropops-senhas-labs/giropops-senhas/redis-deployment.yaml -n giropops-senhas
+kubectl apply -f giropops-senhas-labs/giropops-senhas/redis-service.yaml -n giropops-senhas
+```
+
+Dentro de poucos segundos você terá os seus pods rodando no cluster lindamente, conforme abaixo:
+
+```bash
+NAME                                READY   STATUS    RESTARTS   AGE
+giropops-senhas-55895b4d9c-7v5ck    2/2     Running   0          15s
+giropops-senhas-55895b4d9c-mgprb    2/2     Running   0          15s
+redis-deployment-76c5cdb57b-dkqwq   2/2     Running   0          15s
+```
+
+Veja que estamos com dois containers por pods, fruto da injeção do sidecar Envoy pelo Istio.
+
+
+
